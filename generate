@@ -1,0 +1,72 @@
+#!/bin/bash
+
+set -e
+
+# テンプレートのディレクトリ（このスクリプトがあるディレクトリ）
+TEMPLATE_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+# 使い方の表示
+usage() {
+    echo "Usage: generate <project-name> [destination-path]"
+    echo ""
+    echo "Arguments:"
+    echo "  project-name      新しいプロジェクトの名前"
+    echo "  destination-path  プロジェクトを作成する場所（省略時はカレントディレクトリ）"
+    echo ""
+    echo "Example:"
+    echo "  generate my-kotlin-project"
+    echo "  generate my-kotlin-project ~/projects"
+    exit 1
+}
+
+# 引数チェック
+if [ $# -lt 1 ]; then
+    usage
+fi
+
+PROJECT_NAME="$1"
+DESTINATION="${2:-.}"
+
+# 絶対パスに変換
+DESTINATION="$(cd "$DESTINATION" && pwd)"
+PROJECT_PATH="$DESTINATION/$PROJECT_NAME"
+
+# プロジェクトディレクトリが既に存在するかチェック
+if [ -d "$PROJECT_PATH" ]; then
+    echo "Error: ディレクトリ '$PROJECT_PATH' は既に存在します"
+    exit 1
+fi
+
+echo "新しいプロジェクトを作成中: $PROJECT_PATH"
+
+# プロジェクトディレクトリを作成
+mkdir -p "$PROJECT_PATH"
+
+# テンプレートからファイルをコピー（除外パターンを指定）
+rsync -av \
+    --exclude='.git' \
+    --exclude='.gradle' \
+    --exclude='.idea' \
+    --exclude='build' \
+    --exclude='generate' \
+    --exclude='.DS_Store' \
+    "$TEMPLATE_DIR/" "$PROJECT_PATH/"
+
+# settings.gradle.ktsのプロジェクト名を置換
+if [ -f "$PROJECT_PATH/settings.gradle.kts" ]; then
+    sed -i.bak "s/rootProject.name = \".*\"/rootProject.name = \"$PROJECT_NAME\"/" "$PROJECT_PATH/settings.gradle.kts"
+    rm "$PROJECT_PATH/settings.gradle.kts.bak"
+fi
+
+# .idea/.nameファイルがあれば更新
+if [ -f "$PROJECT_PATH/.idea/.name" ]; then
+    echo -n "$PROJECT_NAME" > "$PROJECT_PATH/.idea/.name"
+fi
+
+echo ""
+echo "✓ プロジェクト '$PROJECT_NAME' を作成しました"
+echo "✓ 場所: $PROJECT_PATH"
+echo ""
+echo "次のステップ:"
+echo "  cd $PROJECT_PATH"
+echo "  ./gradlew build"
